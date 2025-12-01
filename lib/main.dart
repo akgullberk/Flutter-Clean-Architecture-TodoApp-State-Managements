@@ -3,6 +3,7 @@
 
 // Flutter'ın temel Material Design bileşenlerini (Butonlar, Renkler, Textler vb.) içeri aktarır.
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 // Tarih ve saat formatlama işlemleri için yerel ayarları (Localization) yükleyen paket.
 // Örneğin: "27 Kasım 2025" gibi Türkçe formatlar için gereklidir.
 import 'package:intl/date_symbol_data_local.dart';
@@ -12,7 +13,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:taskly/core/di/injection_container.dart' as di;
 import 'package:taskly/core/routes/app_router.dart';
 import 'package:taskly/core/routes/app_routes.dart';
-
+import 'package:taskly/features/todo/presentation/providers/todo_provider.dart';
 
 // 2. ANA FONKSİYON (Main)
 // ---------------------------------------------------------
@@ -29,8 +30,24 @@ void main() async {
   // Uygulamanın bağımlılıklarını (Service Locator, Repository, Bloc vb.) başlatır.
   // Bu işlem bitmeden uygulama arayüzü çizilmez.
   await di.init();
-  // Hazırlıklar tamamlandıktan sonra 'MyApp' widget'ını ekrana çizer ve uygulamayı başlatır.
-  runApp(const MyApp());
+  // Hazırlıklar tamamlandıktan sonra 'MyApp' widget'ını Provider ile sarıp başlatır.
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create:
+              (_) => TodoProvider(
+                getAllTodos: di.sl(),
+                addTodo: di.sl(),
+                updateTodo: di.sl(),
+                deleteTodo: di.sl(),
+                toggleTodo: di.sl(),
+              )..loadTodos(),
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 // 3. UYGULAMA KÖK WIDGET'I (Root Widget)
@@ -56,26 +73,32 @@ class MyApp extends StatelessWidget {
         // Material 3, bu tohum (seed) renkten açık/koyu mod için tüm renkleri türetir.
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
-          brightness: Brightness.light,// Açık tema kullanacağımızı belirtir.
+          brightness: Brightness.light, // Açık tema kullanacağımızı belirtir.
         ),
         // Google'ın en yeni tasarım dili olan Material 3'ü aktif eder.
         useMaterial3: true,
         // AppBar (Üst Çubuk) için özel ayarlar.
         appBarTheme: AppBarTheme(
-          centerTitle: false, // Başlık ortada değil, solda (default iOS tarzı) olsun.
+          centerTitle:
+              false, // Başlık ortada değil, solda (default iOS tarzı) olsun.
           elevation: 0, // Çubuğun altındaki gölgeyi kaldırır (düz görünüm).
         ),
-        cardTheme: CardTheme( // Kartlar (Card) için özel ayarlar.
+        cardTheme: CardTheme(
+          // Kartlar (Card) için özel ayarlar.
           elevation: 0, // Kartların gölgesini sıfırlar (daha flat/düz tasarım).
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16), // Kart köşelerini 16px yuvarlar.
+            borderRadius: BorderRadius.circular(
+              16,
+            ), // Kart köşelerini 16px yuvarlar.
           ),
         ),
         // Yuvarlak Eylem Butonu (FAB) için özel ayarlar.
         floatingActionButtonTheme: FloatingActionButtonThemeData(
           elevation: 4, // Butonun gölgesini belirler.
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16), // Buton köşelerini karemsi-yuvarlak yapar.
+            borderRadius: BorderRadius.circular(
+              16,
+            ), // Buton köşelerini karemsi-yuvarlak yapar.
           ),
         ),
       ),

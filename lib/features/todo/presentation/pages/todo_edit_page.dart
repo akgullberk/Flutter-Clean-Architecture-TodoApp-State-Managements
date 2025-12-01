@@ -1,9 +1,9 @@
 // 1. İMPORTLAR
 // ---------------------------------------------------------
 import 'package:flutter/material.dart';
-import 'package:taskly/core/di/injection_container.dart'; // Bağımlılıkları (Use Case) buradan çekeceğiz.
 import 'package:taskly/features/todo/domain/entities/todo.dart'; // Düzenlenecek veri modeli.
-import 'package:taskly/features/todo/domain/usecases/update_todo.dart'; // Güncelleme iş emri.
+import 'package:provider/provider.dart';
+import 'package:taskly/features/todo/presentation/providers/todo_provider.dart';
 
 // 2. WIDGET SINIFI (STATEFUL)
 // ---------------------------------------------------------
@@ -25,19 +25,11 @@ class TodoEditPage extends StatefulWidget {
 class _TodoEditPageState extends State<TodoEditPage> {
   // Form doğrulama anahtarı.
   final _formKey = GlobalKey<FormState>();
-  
+
   // Metin kutularını yönetecek kontrolcüler.
   // 'late': "Bunu birazdan (initState içinde) başlatacağım, merak etme" demektir.
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
-
-  // --- DEPENDENCY INJECTION ---
-  // Servis Locator'dan (sl) güncelleme işini yapacak Use Case'i istiyoruz.
-  // "Bana UpdateTodo sınıfını getir."
-  final UpdateTodo _updateTodoUseCase = sl<UpdateTodo>();
-
-  // Kaydet butonuna basıldığında dönen çember göstermek için durum değişkeni.
-  bool _isSaving = false;
 
   // --- BAŞLANGIÇ (INITSTATE) ---
   @override
@@ -46,7 +38,9 @@ class _TodoEditPageState extends State<TodoEditPage> {
     // Sayfa açılır açılmaz, metin kutularının içini
     // dışarıdan gelen eski verilerle dolduruyoruz.
     _titleController = TextEditingController(text: widget.todo.title);
-    _descriptionController = TextEditingController(text: widget.todo.description);
+    _descriptionController = TextEditingController(
+      text: widget.todo.description,
+    );
   }
 
   // --- TEMİZLİK (DISPOSE) ---
@@ -63,11 +57,6 @@ class _TodoEditPageState extends State<TodoEditPage> {
     // 1. Form geçerli mi? (Başlık boş mu?)
     if (!_formKey.currentState!.validate()) return;
 
-    // 2. Butonu "Kaydediliyor..." moduna al.
-    setState(() {
-      _isSaving = true;
-    });
-
     // 3. GÜNCEL NESNEYİ OLUŞTURMA
     // Burası çok önemli! 'widget.todo' (Eski veri) üzerinden 'copyWith' yapıyoruz.
     // ID değişmiyor! Tarih değişmiyor! Sadece Başlık ve Açıklama değişiyor.
@@ -76,45 +65,35 @@ class _TodoEditPageState extends State<TodoEditPage> {
       description: _descriptionController.text.trim(),
     );
 
-    // 4. Use Case'i çağır (Domain katmanına emir ver).
-    final result = await _updateTodoUseCase(updatedTodo);
+    // 4. Provider üzerinden güncelleme isteği gönder.
+    final error = await context.read<TodoProvider>().updateTodo(updatedTodo);
 
-    // 5. Sonucu İşle (Either/Fold)
-    result.fold(
-      (failure) {
-        // HATA DURUMU:
-        setState(() {
-          _isSaving = false; // Yükleniyor'u kapat.
-        });
-        // Kırmızı uyarı göster.
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(failure.message ?? 'Todo güncellenirken hata oluştu'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      },
-      (_) {
-        // BAŞARI DURUMU:
-        if (mounted) {
-          // Yeşil uyarı göster.
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Todo başarıyla güncellendi'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Sayfayı kapat ve geriye 'true' değeri döndür.
-          // (Ana sayfa bu 'true' değerini görünce listeyi yenileyeceğini anlar).
-          Navigator.of(context).pop(true);
-        }
-      },
+    if (!mounted) return;
+
+    if (error != null) {
+      // Kırmızı uyarı göster.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    // BAŞARI DURUMU:
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Todo başarıyla güncellendi'),
+        backgroundColor: Colors.green,
+      ),
     );
+    // Sayfayı kapat ve geriye 'true' değeri döndür.
+    // (Ana sayfa bu 'true' değerini görünce listeyi yenileyeceğini anlar).
+    Navigator.of(context).pop(true);
   }
 
   // --- EKRAN ÇİZİMİ (BUILD) ---
   @override
   Widget build(BuildContext context) {
+    final isSaving = context.watch<TodoProvider>().isSubmitting;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Todo Düzenle'), // Sayfa Başlığı.
@@ -146,7 +125,7 @@ class _TodoEditPageState extends State<TodoEditPage> {
                 textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 16),
-              
+
               // --- AÇIKLAMA ALANI ---
               TextFormField(
                 controller: _descriptionController,
@@ -168,19 +147,20 @@ class _TodoEditPageState extends State<TodoEditPage> {
                 width: double.infinity, // Ekran genişliğince uzasın.
                 child: ElevatedButton.icon(
                   // Eğer kaydediliyorsa butona tıklanamasın (null), değilse _save çalışsın.
-                  onPressed: _isSaving ? null : _save,
-                  
+                  onPressed: isSaving ? null : _save,
+
                   // Buton ikonu: Yükleniyorsa dönen çember, değilse tik işareti.
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.check),
-                  
+                  icon:
+                      isSaving
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.check),
+
                   // Buton yazısı.
-                  label: Text(_isSaving ? 'Kaydediliyor...' : 'Güncelle'),
+                  label: Text(isSaving ? 'Kaydediliyor...' : 'Güncelle'),
                 ),
               ),
             ],

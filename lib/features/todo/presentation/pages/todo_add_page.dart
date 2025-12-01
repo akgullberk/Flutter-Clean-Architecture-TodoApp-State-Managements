@@ -1,9 +1,13 @@
+// 1. İMPORTLAR
+// ---------------------------------------------------------
 import 'package:flutter/material.dart';
-import 'package:taskly/core/di/injection_container.dart';
-import 'package:taskly/features/todo/domain/entities/todo.dart';
-import 'package:taskly/features/todo/domain/usecases/add_todo.dart';
+import 'package:taskly/features/todo/domain/entities/todo.dart'; // Oluşturacağımız veri modeli.
+import 'package:provider/provider.dart';
+import 'package:taskly/features/todo/presentation/providers/todo_provider.dart';
 
-/// Yeni todo ekleme ekranı.
+// 2. WIDGET SINIFI (STATEFUL)
+// ---------------------------------------------------------
+// Bu sayfa dışarıdan bir parametre almaz. Çünkü sıfırdan veri oluşturacak.
 class TodoAddPage extends StatefulWidget {
   const TodoAddPage({super.key});
 
@@ -11,15 +15,17 @@ class TodoAddPage extends StatefulWidget {
   State<TodoAddPage> createState() => _TodoAddPageState();
 }
 
+// 3. STATE SINIFI
+// ---------------------------------------------------------
 class _TodoAddPageState extends State<TodoAddPage> {
+  // Form doğrulama anahtarı.
   final _formKey = GlobalKey<FormState>();
+
+  // Metin kutularını yönetecek kontrolcüler.
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  final AddTodo _addTodoUseCase = sl<AddTodo>();
-
-  bool _isSaving = false;
-
+  // --- TEMİZLİK (DISPOSE) ---
   @override
   void dispose() {
     _titleController.dispose();
@@ -27,56 +33,55 @@ class _TodoAddPageState extends State<TodoAddPage> {
     super.dispose();
   }
 
+  // --- KAYDETME MANTIĞI ---
   Future<void> _save() async {
+    // 1. Form geçerli mi? (Başlık dolu mu?)
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isSaving = true;
-    });
-
+    // 3. YENİ NESNE OLUŞTURMA
+    // Burası 'EditPage'den farklıdır. EditPage var olanı kopyalıyordu.
+    // Burada sıfırdan bir Todo oluşturuyoruz.
     final newTodo = Todo(
+      // ID Üretimi: Basit bir yöntem olarak o anki zamanın milisaniye değerini ID yapıyoruz.
+      // (Gerçek projelerde 'uuid' paketi kullanılır ama bu da çalışır).
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim(),
-      isCompleted: false,
-      createdAt: DateTime.now(),
+      isCompleted: false, // Yeni görev henüz tamamlanmamıştır.
+      createdAt: DateTime.now(), // Oluşturulma tarihi şu an.
     );
 
-    final result = await _addTodoUseCase(newTodo);
+    // 4. Provider üzerinden domain katmanına isteği gönder.
+    final error = await context.read<TodoProvider>().addTodo(newTodo);
 
-    result.fold(
-      (failure) {
-        setState(() {
-          _isSaving = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(failure.message ?? 'Todo eklenirken hata oluştu'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      },
-      (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Todo başarıyla eklendi'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Liste ekranına başarılı bilgisini geri gönder.
-          Navigator.of(context).pop(true);
-        }
-      },
+    if (!mounted) return;
+
+    if (error != null) {
+      // Kırmızı hata mesajı göster.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    // BAŞARI DURUMU (SAĞ CEP):
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Todo başarıyla eklendi'),
+        backgroundColor: Colors.green,
+      ),
     );
+    // Sayfayı kapat ve geriye 'true' değeri döndür.
+    // (Ana sayfa bu 'true'yu görünce listeyi yenileyecek).
+    Navigator.of(context).pop(true);
   }
 
+  // --- EKRAN ÇİZİMİ (BUILD) ---
   @override
   Widget build(BuildContext context) {
+    final isSaving = context.watch<TodoProvider>().isSubmitting;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Yeni Todo Ekle'),
-      ),
+      appBar: AppBar(title: const Text('Yeni Todo Ekle')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -84,6 +89,7 @@ class _TodoAddPageState extends State<TodoAddPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // --- BAŞLIK ALANI ---
               TextFormField(
                 controller: _titleController,
                 decoration: InputDecoration(
@@ -103,6 +109,8 @@ class _TodoAddPageState extends State<TodoAddPage> {
                 textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 16),
+
+              // --- AÇIKLAMA ALANI ---
               TextFormField(
                 controller: _descriptionController,
                 decoration: InputDecoration(
@@ -117,18 +125,22 @@ class _TodoAddPageState extends State<TodoAddPage> {
                 textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 24),
+
+              // --- KAYDET BUTONU ---
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _save,
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.check),
-                  label: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+                  // Yükleniyorsa tıklamayı engelle (null).
+                  onPressed: isSaving ? null : _save,
+                  icon:
+                      isSaving
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.check),
+                  label: Text(isSaving ? 'Kaydediliyor...' : 'Kaydet'),
                 ),
               ),
             ],
@@ -138,5 +150,3 @@ class _TodoAddPageState extends State<TodoAddPage> {
     );
   }
 }
-
-
