@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 // Tarih ve saat formatlama işlemleri için yerel ayarları (Localization) yükleyen paket.
 // Örneğin: "27 Kasım 2025" gibi Türkçe formatlar için gereklidir.
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Bağımlılık Enjeksiyonu (Dependency Injection - DI) yapılandırmasını içeri aktarır.
 // 'as di' diyerek bu dosyaya 'di' takma adıyla erişeceğimizi belirtiyoruz.
 // Bu, veritabanı veya servislerin uygulama başlarken hazırlanmasını sağlar.
@@ -30,7 +31,11 @@ void main() async {
   // Bu işlem bitmeden uygulama arayüzü çizilmez.
   await di.init();
   // Hazırlıklar tamamlandıktan sonra 'MyApp' widget'ını ekrana çizer ve uygulamayı başlatır.
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 // 3. UYGULAMA KÖK WIDGET'I (Root Widget)

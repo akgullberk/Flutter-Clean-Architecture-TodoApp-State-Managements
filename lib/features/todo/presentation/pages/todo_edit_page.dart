@@ -1,14 +1,14 @@
 // 1. İMPORTLAR
 // ---------------------------------------------------------
 import 'package:flutter/material.dart';
-import 'package:taskly/core/di/injection_container.dart'; // Bağımlılıkları (Use Case) buradan çekeceğiz.
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Riverpod ile durum yönetimi.
 import 'package:taskly/features/todo/domain/entities/todo.dart'; // Düzenlenecek veri modeli.
-import 'package:taskly/features/todo/domain/usecases/update_todo.dart'; // Güncelleme iş emri.
+import 'package:taskly/features/todo/presentation/providers/todo_providers.dart'; // Todo provider.
 
-// 2. WIDGET SINIFI (STATEFUL)
+// 2. WIDGET SINIFI (STATEFUL + Riverpod)
 // ---------------------------------------------------------
 // Bu sayfa açılırken düzenlenecek olan 'Todo' nesnesini parametre olarak almak ZORUNDADIR.
-class TodoEditPage extends StatefulWidget {
+class TodoEditPage extends ConsumerStatefulWidget {
   final Todo todo;
 
   const TodoEditPage({
@@ -17,12 +17,12 @@ class TodoEditPage extends StatefulWidget {
   });
 
   @override
-  State<TodoEditPage> createState() => _TodoEditPageState();
+  ConsumerState<TodoEditPage> createState() => _TodoEditPageState();
 }
 
 // 3. STATE SINIFI
 // ---------------------------------------------------------
-class _TodoEditPageState extends State<TodoEditPage> {
+class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   // Form doğrulama anahtarı.
   final _formKey = GlobalKey<FormState>();
   
@@ -30,11 +30,6 @@ class _TodoEditPageState extends State<TodoEditPage> {
   // 'late': "Bunu birazdan (initState içinde) başlatacağım, merak etme" demektir.
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
-
-  // --- DEPENDENCY INJECTION ---
-  // Servis Locator'dan (sl) güncelleme işini yapacak Use Case'i istiyoruz.
-  // "Bana UpdateTodo sınıfını getir."
-  final UpdateTodo _updateTodoUseCase = sl<UpdateTodo>();
 
   // Kaydet butonuna basıldığında dönen çember göstermek için durum değişkeni.
   bool _isSaving = false;
@@ -76,40 +71,35 @@ class _TodoEditPageState extends State<TodoEditPage> {
       description: _descriptionController.text.trim(),
     );
 
-    // 4. Use Case'i çağır (Domain katmanına emir ver).
-    final result = await _updateTodoUseCase(updatedTodo);
+    try {
+      // 4. Riverpod provider üzerinden güncelleme isteği gönder.
+      await ref.read(todoListProvider.notifier).updateTodo(updatedTodo);
 
-    // 5. Sonucu İşle (Either/Fold)
-    result.fold(
-      (failure) {
-        // HATA DURUMU:
-        setState(() {
-          _isSaving = false; // Yükleniyor'u kapat.
-        });
-        // Kırmızı uyarı göster.
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(failure.message ?? 'Todo güncellenirken hata oluştu'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      },
-      (_) {
-        // BAŞARI DURUMU:
-        if (mounted) {
-          // Yeşil uyarı göster.
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Todo başarıyla güncellendi'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Sayfayı kapat ve geriye 'true' değeri döndür.
-          // (Ana sayfa bu 'true' değerini görünce listeyi yenileyeceğini anlar).
-          Navigator.of(context).pop(true);
-        }
-      },
-    );
+      // BAŞARI DURUMU:
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Todo başarıyla güncellendi'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // Sayfayı kapat ve geriye 'true' değeri döndür.
+      // (Ana sayfa bu 'true' değerini görünce listeyi yenileyeceğini anlar).
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      // HATA DURUMU:
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false; // Yükleniyor'u kapat.
+      });
+      // Kırmızı uyarı göster.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Todo güncellenirken hata oluştu'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // --- EKRAN ÇİZİMİ (BUILD) ---
