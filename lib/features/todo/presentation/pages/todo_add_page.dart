@@ -1,13 +1,14 @@
 // 1. İMPORTLAR
 // ---------------------------------------------------------
 import 'package:flutter/material.dart';
-import 'package:taskly/features/todo/domain/entities/todo.dart'; // Oluşturacağımız veri modeli.
-import 'package:provider/provider.dart';
-import 'package:taskly/features/todo/presentation/providers/todo_provider.dart';
+import 'package:provider/provider.dart'; // State Management paketi.
+import 'package:taskly/features/todo/domain/entities/todo.dart'; // Veri modeli.
+import 'package:taskly/features/todo/presentation/providers/todo_provider.dart'; // Provider sınıfı.
 
 // 2. WIDGET SINIFI (STATEFUL)
 // ---------------------------------------------------------
-// Bu sayfa dışarıdan bir parametre almaz. Çünkü sıfırdan veri oluşturacak.
+// Form verilerini (TextEditingController) tutmak için StatefulWidget kullanmaya devam ediyoruz.
+// Ancak iş mantığını (Business Logic) Provider'a devredeceğiz.
 class TodoAddPage extends StatefulWidget {
   const TodoAddPage({super.key});
 
@@ -28,6 +29,7 @@ class _TodoAddPageState extends State<TodoAddPage> {
   // --- TEMİZLİK (DISPOSE) ---
   @override
   void dispose() {
+    // Sayfa kapanınca kontrolcüleri bellekten sil.
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -38,50 +40,60 @@ class _TodoAddPageState extends State<TodoAddPage> {
     // 1. Form geçerli mi? (Başlık dolu mu?)
     if (!_formKey.currentState!.validate()) return;
 
-    // 3. YENİ NESNE OLUŞTURMA
-    // Burası 'EditPage'den farklıdır. EditPage var olanı kopyalıyordu.
-    // Burada sıfırdan bir Todo oluşturuyoruz.
+    // 2. YENİ NESNE OLUŞTURMA
+    // Kullanıcının girdiği verilerle geçici bir Todo nesnesi oluşturuyoruz.
     final newTodo = Todo(
-      // ID Üretimi: Basit bir yöntem olarak o anki zamanın milisaniye değerini ID yapıyoruz.
-      // (Gerçek projelerde 'uuid' paketi kullanılır ama bu da çalışır).
+      // ID Üretimi: Benzersiz olması için şu anki zamanın milisaniye değerini kullanıyoruz.
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim(),
-      isCompleted: false, // Yeni görev henüz tamamlanmamıştır.
-      createdAt: DateTime.now(), // Oluşturulma tarihi şu an.
+      isCompleted: false, // Yeni görev varsayılan olarak tamamlanmamıştır.
+      createdAt: DateTime.now(), // Oluşturulma tarihi.
     );
 
-    // 4. Provider üzerinden domain katmanına isteği gönder.
+    // 3. PROVIDER İLE KAYDETME
+    // DİKKAT: Fonksiyon çağırırken 'read' kullanıyoruz (Dinlemeye gerek yok).
+    // Provider bize işlemin sonucunu (Hata varsa String, yoksa null) dönecek.
     final error = await context.read<TodoProvider>().addTodo(newTodo);
 
+    // İşlem bitene kadar sayfa kapandıysa (örn: kullanıcı geri tuşuna bastıysa) dur.
     if (!mounted) return;
 
+    // 4. SONUCU KONTROL ET
     if (error != null) {
-      // Kırmızı hata mesajı göster.
+      // HATA VARSA: Kırmızı uyarı göster ve fonksiyondan çık.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error), backgroundColor: Colors.red),
       );
       return;
     }
 
-    // BAŞARI DURUMU (SAĞ CEP):
+    // BAŞARI DURUMU:
+    // Yeşil uyarı göster.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Todo başarıyla eklendi'),
         backgroundColor: Colors.green,
       ),
     );
+
     // Sayfayı kapat ve geriye 'true' değeri döndür.
-    // (Ana sayfa bu 'true'yu görünce listeyi yenileyecek).
+    // (Bunu dinleyen bir önceki sayfa listeyi yenileyecek).
     Navigator.of(context).pop(true);
   }
 
   // --- EKRAN ÇİZİMİ (BUILD) ---
   @override
   Widget build(BuildContext context) {
+    // DİKKAT: Yükleniyor durumunu dinlemek için 'watch' kullanıyoruz.
+    // Provider'daki 'isSubmitting' değeri değişirse burası yeniden çizilir
+    // ve butonun üzerindeki loading animasyonu görünür/kaybolur.
     final isSaving = context.watch<TodoProvider>().isSubmitting;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Yeni Todo Ekle')),
+      appBar: AppBar(
+        title: const Text('Yeni Todo Ekle'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -130,16 +142,19 @@ class _TodoAddPageState extends State<TodoAddPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  // Yükleniyorsa tıklamayı engelle (null).
+                  // Yükleniyorsa tıklamayı engelle (null), değilse _save çalışsın.
                   onPressed: isSaving ? null : _save,
-                  icon:
-                      isSaving
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : const Icon(Icons.check),
+                  
+                  // İkon: Yükleniyorsa dönen çember, değilse tik işareti.
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check),
+                  
+                  // Yazı: Duruma göre değişir.
                   label: Text(isSaving ? 'Kaydediliyor...' : 'Kaydet'),
                 ),
               ),
