@@ -3,6 +3,7 @@
 
 // Flutter'ın temel Material Design bileşenlerini (Butonlar, Renkler, Textler vb.) içeri aktarır.
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 // Tarih ve saat formatlama işlemleri için yerel ayarları (Localization) yükleyen paket.
 // Örneğin: "27 Kasım 2025" gibi Türkçe formatlar için gereklidir.
 import 'package:intl/date_symbol_data_local.dart';
@@ -12,6 +13,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:taskly/core/di/injection_container.dart' as di;
 import 'package:taskly/core/routes/app_router.dart';
 import 'package:taskly/core/routes/app_routes.dart';
+import 'package:taskly/features/todo/presentation/bloc/todo_bloc.dart';
 
 
 // 2. ANA FONKSİYON (Main)
@@ -44,43 +46,45 @@ class MyApp extends StatelessWidget {
   // Arayüzün çizildiği yer.
   @override
   Widget build(BuildContext context) {
-    // MaterialApp: Uygulamanın genel temasını, rotalarını ve başlığını yöneten ana kapsayıcıdır.
-    return MaterialApp(
-      // Uygulamanın adı (Android'de son kullanılanlarda görünür).
-      title: 'Taskly',
-      // Sağ üst köşedeki kırmızı "Debug" şeridini kaldırır.
-      debugShowCheckedModeBanner: false,
-      // --- TEMA AYARLARI (ThemeData) ---
-      theme: ThemeData(
-        // Renk Şeması: 'Colors.blue' rengini baz alarak uyumlu bir renk paleti oluşturur.
-        // Material 3, bu tohum (seed) renkten açık/koyu mod için tüm renkleri türetir.
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.light,// Açık tema kullanacağımızı belirtir.
-        ),
-        // Google'ın en yeni tasarım dili olan Material 3'ü aktif eder.
-        useMaterial3: true,
-        // AppBar (Üst Çubuk) için özel ayarlar.
-        appBarTheme: AppBarTheme(
-          centerTitle: false, // Başlık ortada değil, solda (default iOS tarzı) olsun.
-          elevation: 0, // Çubuğun altındaki gölgeyi kaldırır (düz görünüm).
-        ),
-        cardTheme: CardTheme( // Kartlar (Card) için özel ayarlar.
-          elevation: 0, // Kartların gölgesini sıfırlar (daha flat/düz tasarım).
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16), // Kart köşelerini 16px yuvarlar.
+    return BlocProvider(
+      create: (_) => di.sl<TodoBloc>()..add(const TodoRefreshRequested()),
+      child: MaterialApp(
+        // Uygulamanın adı (Android'de son kullanılanlarda görünür).
+        title: 'Taskly',
+        // Sağ üst köşedeki kırmızı "Debug" şeridini kaldırır.
+        debugShowCheckedModeBanner: false,
+        // --- TEMA AYARLARI (ThemeData) ---
+        theme: ThemeData(
+          // Renk Şeması: 'Colors.blue' rengini baz alarak uyumlu bir renk paleti oluşturur.
+          // Material 3, bu tohum (seed) renkten açık/koyu mod için tüm renkleri türetir.
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.blue,
+            brightness: Brightness.light,// Açık tema kullanacağımızı belirtir.
+          ),
+          // Google'ın en yeni tasarım dili olan Material 3'ü aktif eder.
+          useMaterial3: true,
+          // AppBar (Üst Çubuk) için özel ayarlar.
+          appBarTheme: AppBarTheme(
+            centerTitle: false, // Başlık ortada değil, solda (default iOS tarzı) olsun.
+            elevation: 0, // Çubuğun altındaki gölgeyi kaldırır (düz görünüm).
+          ),
+          cardTheme: CardTheme( // Kartlar (Card) için özel ayarlar.
+            elevation: 0, // Kartların gölgesini sıfırlar (daha flat/düz tasarım).
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16), // Kart köşelerini 16px yuvarlar.
+            ),
+          ),
+          // Yuvarlak Eylem Butonu (FAB) için özel ayarlar.
+          floatingActionButtonTheme: FloatingActionButtonThemeData(
+            elevation: 4, // Butonun gölgesini belirler.
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16), // Buton köşelerini karemsi-yuvarlak yapar.
+            ),
           ),
         ),
-        // Yuvarlak Eylem Butonu (FAB) için özel ayarlar.
-        floatingActionButtonTheme: FloatingActionButtonThemeData(
-          elevation: 4, // Butonun gölgesini belirler.
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16), // Buton köşelerini karemsi-yuvarlak yapar.
-          ),
-        ),
+        initialRoute: AppRoutes.todoList,
+        onGenerateRoute: AppRouter.generateRoute,
       ),
-      initialRoute: AppRoutes.todoList,
-      onGenerateRoute: AppRouter.generateRoute,
     );
   }
 }

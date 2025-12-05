@@ -9,6 +9,7 @@ import 'package:taskly/features/todo/domain/usecases/delete_todo.dart';
 import 'package:taskly/features/todo/domain/usecases/get_all_todos.dart';
 import 'package:taskly/features/todo/domain/usecases/toggle_todo.dart';
 import 'package:taskly/features/todo/domain/usecases/update_todo.dart';
+import 'package:taskly/features/todo/presentation/bloc/todo_bloc.dart';
 
 // Service Locator (GetIt) instance
 final sl = GetIt.instance;
@@ -77,4 +78,15 @@ Future<void> init({String? hiveSubDir}) async {
     ..registerLazySingleton(() => UpdateTodo(sl()))
     ..registerLazySingleton(() => DeleteTodo(sl()))
     ..registerLazySingleton(() => ToggleTodo(sl()));
+
+  // -----------------------------
+  // 8. Bloc Kayıtları
+  // -----------------------------
+  sl.registerFactory(
+    () => TodoBloc(
+      getAllTodos: sl(),
+      toggleTodo: sl(),
+      deleteTodo: sl(),
+    ),
+  );
 }
